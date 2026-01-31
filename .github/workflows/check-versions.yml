@@ -1,0 +1,127 @@
+name: Check for New Dependency Versions
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly on Monday at 6:00 AM UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-versions:
+    runs-on: ubuntu-latest
+    outputs:
+      updates_available: ${{ steps.compare.outputs.updates_available }}
+      changelog: ${{ steps.compare.outputs.changelog }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Load current versions
+        id: current
+        run: |
+          source .versions
+          echo "image_version=${IMAGE_VERSION}" >> $GITHUB_OUTPUT
+          echo "nmap_version=${NMAP_VERSION}" >> $GITHUB_OUTPUT
+          echo "gh_version=${GH_VERSION}" >> $GITHUB_OUTPUT
+          echo "docker_version=${DOCKER_VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Check latest nmap version
+        id: check-nmap
+        run: |
+          LATEST=$(curl -sL "https://api.github.com/repos/ernw/static-toolbox/releases" | \
+            jq -r '[.[] | select(.tag_name | startswith("nmap-"))][0].tag_name' | sed 's/^nmap-v//')
+          echo "latest=${LATEST}" >> $GITHUB_OUTPUT
+          echo "Latest nmap: ${LATEST}"
+
+      - name: Check latest gh version
+        id: check-gh
+        run: |
+          LATEST=$(curl -sL "https://api.github.com/repos/cli/cli/releases/latest" | \
+            jq -r '.tag_name' | sed 's/^v//')
+          echo "latest=${LATEST}" >> $GITHUB_OUTPUT
+          echo "Latest gh: ${LATEST}"
+
+      - name: Check latest Docker version
+        id: check-docker
+        run: |
+          LATEST=$(curl -sL "https://api.github.com/repos/moby/moby/releases/latest" | \
+            jq -r '.tag_name' | sed 's/^v//' | sed 's/^docker-v//')
+          echo "latest=${LATEST}" >> $GITHUB_OUTPUT
+          echo "Latest Docker: ${LATEST}"
+
+      - name: Compare versions
+        id: compare
+        run: |
+          UPDATES=""
+          CHANGELOG=""
+
+          if [ "${{ steps.current.outputs.nmap_version }}" != "${{ steps.check-nmap.outputs.latest }}" ] && [ -n "${{ steps.check-nmap.outputs.latest }}" ]; then
+            UPDATES="true"
+            CHANGELOG="${CHANGELOG}- **nmap**: ${{ steps.current.outputs.nmap_version }} → ${{ steps.check-nmap.outputs.latest }}\n"
+            echo "nmap update available: ${{ steps.current.outputs.nmap_version }} -> ${{ steps.check-nmap.outputs.latest }}"
+          fi
+
+          if [ "${{ steps.current.outputs.gh_version }}" != "${{ steps.check-gh.outputs.latest }}" ] && [ -n "${{ steps.check-gh.outputs.latest }}" ]; then
+            UPDATES="true"
+            CHANGELOG="${CHANGELOG}- **gh**: ${{ steps.current.outputs.gh_version }} → ${{ steps.check-gh.outputs.latest }}\n"
+            echo "gh update available: ${{ steps.current.outputs.gh_version }} -> ${{ steps.check-gh.outputs.latest }}"
+          fi
+
+          if [ "${{ steps.current.outputs.docker_version }}" != "${{ steps.check-docker.outputs.latest }}" ] && [ -n "${{ steps.check-docker.outputs.latest }}" ]; then
+            UPDATES="true"
+            CHANGELOG="${CHANGELOG}- **Docker**: ${{ steps.current.outputs.docker_version }} → ${{ steps.check-docker.outputs.latest }}\n"
+            echo "Docker update available: ${{ steps.current.outputs.docker_version }} -> ${{ steps.check-docker.outputs.latest }}"
+          fi
+
+          if [ -z "$UPDATES" ]; then
+            echo "All dependencies are up to date"
+            echo "updates_available=false" >> $GITHUB_OUTPUT
+          else
+            echo "updates_available=true" >> $GITHUB_OUTPUT
+            echo "changelog<<EOF" >> $GITHUB_OUTPUT
+            echo -e "$CHANGELOG" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update .versions file
+        if: steps.compare.outputs.updates_available == 'true'
+        run: |
+          source .versions
+
+          NEW_NMAP="${{ steps.check-nmap.outputs.latest }}"
+          NEW_GH="${{ steps.check-gh.outputs.latest }}"
+          NEW_DOCKER="${{ steps.check-docker.outputs.latest }}"
+          [ -z "$NEW_NMAP" ] && NEW_NMAP="${NMAP_VERSION}"
+          [ -z "$NEW_GH" ] && NEW_GH="${GH_VERSION}"
+          [ -z "$NEW_DOCKER" ] && NEW_DOCKER="${DOCKER_VERSION}"
+
+          cat > .versions << EOF
+          IMAGE_VERSION=${IMAGE_VERSION}
+          NMAP_VERSION=${NEW_NMAP}
+          GH_VERSION=${NEW_GH}
+          DOCKER_VERSION=${NEW_DOCKER}
+          EOF
+
+          echo "Updated .versions:"
+          cat .versions
+
+      - name: Create Pull Request
+        if: steps.compare.outputs.updates_available == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: deps/version-updates
+          title: "chore(deps): update dependency versions"
+          body: |
+            ## Dependency Updates
+
+            ${{ steps.compare.outputs.changelog }}
+
+            ---
+            **To trigger a build:** bump `IMAGE_VERSION` in `.versions` before merging.
+
+            *Auto-generated by version checker workflow*
+          labels: dependencies
+          commit-message: "chore(deps): update dependency versions"
