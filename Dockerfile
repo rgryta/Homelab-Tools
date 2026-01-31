@@ -36,7 +36,7 @@ RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
       > /etc/apt/sources.list.d/google-chrome.list \
     && apt-get update && apt-get install -y google-chrome-stable \
     && apt-get clean && rm -rf /var/lib/apt/lists/* \
-    && cp /usr/bin/google-chrome-stable /opt/tools/bin/google-chrome
+    && ln -sf /usr/bin/google-chrome-stable /opt/tools/bin/google-chrome
 
 # Install gcloud CLI
 RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
