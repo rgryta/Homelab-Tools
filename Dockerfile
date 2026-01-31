@@ -82,7 +82,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends make \
 # =============================================================================
 FROM alpine:latest AS pause-builder
 RUN apk add --no-cache go \
-    && echo 'package main; import "os/signal"; func main() { c := make(chan os.Signal, 1); signal.Notify(c); <-c }' > /pause.go \
+    && echo 'package main; import ("os"; "os/signal"); func main() { c := make(chan os.Signal, 1); signal.Notify(c); <-c }' > /pause.go \
     && CGO_ENABLED=0 go build -ldflags="-s -w" -o /pause /pause.go
 
 # =============================================================================
