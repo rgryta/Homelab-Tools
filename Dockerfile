@@ -8,7 +8,7 @@ ARG DOCKER_VERSION=29.2.0
 # =============================================================================
 FROM debian:bookworm-slim AS base
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl unzip wget ca-certificates jq \
+    curl wget ca-certificates jq \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # =============================================================================
@@ -32,18 +32,6 @@ RUN mkdir -p /opt/tools/bin \
     && curl -sL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz" \
       | tar -xz -C /tmp \
     && cp /tmp/gh_${GH_VERSION}_linux_amd64/bin/gh /opt/tools/bin/
-
-# =============================================================================
-# Stage: Chrome headless-shell
-# =============================================================================
-FROM base AS chrome-builder
-RUN mkdir -p /opt/tools/bin \
-    && CHROME_URL=$(curl -sL "https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json" \
-      | jq -r '.channels.Stable.downloads["chrome-headless-shell"][] | select(.platform == "linux64") | .url') \
-    && curl -sL "$CHROME_URL" -o /tmp/chrome.zip \
-    && unzip -q /tmp/chrome.zip -d /opt/tools \
-    && mv /opt/tools/chrome-headless-shell-linux64 /opt/tools/chrome \
-    && ln -sf /opt/tools/chrome/chrome-headless-shell /opt/tools/bin/google-chrome
 
 # =============================================================================
 # Stage: gcloud CLI
@@ -96,14 +84,13 @@ COPY --from=pause-builder /pause /pause
 # Copy from all builder stages
 COPY --from=nmap-builder --chown=1000:1000 /opt/tools/ /opt/tools/
 COPY --from=gh-builder --chown=1000:1000 /opt/tools/ /opt/tools/
-COPY --from=chrome-builder --chown=1000:1000 /opt/tools/ /opt/tools/
 COPY --from=gcloud-builder --chown=1000:1000 /opt/tools/ /opt/tools/
 COPY --from=docker-builder --chown=1000:1000 /opt/tools/ /opt/tools/
 COPY --from=make-builder --chown=1000:1000 /opt/tools/ /opt/tools/
 
 # Labels
 LABEL org.opencontainers.image.title="Homelab Tools"
-LABEL org.opencontainers.image.description="Development tools: nmap, gh, gcloud, docker, chrome"
+LABEL org.opencontainers.image.description="Development tools: nmap, gh, gcloud, docker, make"
 LABEL org.opencontainers.image.source="https://github.com/rgryta/Homelab-Tools"
 
 USER 1000:1000
