@@ -29,14 +29,16 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     && apt-get clean && rm -rf /var/lib/apt/lists/* \
     && cp /usr/bin/gh /opt/tools/bin/
 
-# Install Google Chrome (headless)
+# Install Google Chrome (copy entire installation to /opt/tools for volume sharing)
 RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
       | gpg --dearmor -o /usr/share/keyrings/google-chrome-keyring.gpg \
     && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" \
       > /etc/apt/sources.list.d/google-chrome.list \
     && apt-get update && apt-get install -y google-chrome-stable \
     && apt-get clean && rm -rf /var/lib/apt/lists/* \
-    && ln -sf /usr/bin/google-chrome-stable /opt/tools/bin/google-chrome
+    && cp -a /opt/google/chrome /opt/tools/chrome \
+    && printf '#!/bin/bash\nexport CHROME_WRAPPER="/opt/tools/bin/google-chrome"\nexec /opt/tools/chrome/chrome "$@"\n' > /opt/tools/bin/google-chrome \
+    && chmod +x /opt/tools/bin/google-chrome
 
 # Install gcloud CLI
 RUN curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
