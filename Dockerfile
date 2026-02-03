@@ -93,8 +93,10 @@ RUN mkdir -p /opt/tools/bin /opt/tools/zig \
     && curl -sL "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-x86_64-${ZIG_VERSION}.tar.xz" \
       | tar -xJ -C /opt/tools/zig --strip-components=1 \
     && ln -sf /opt/tools/zig/zig /opt/tools/bin/zig \
-    && printf '#!/bin/sh\nexec /opt/tools/zig/zig cc "$@"\n' > /opt/tools/bin/cc \
-    && chmod +x /opt/tools/bin/cc
+    && printf '#!/bin/sh\n# Filter out --target args that zig does not understand\nfor arg; do case "$arg" in --target=*) ;; *) set -- "$@" "$arg" ;; esac; shift; done\nexec /opt/tools/zig/zig cc "$@"\n' > /opt/tools/bin/cc \
+    && chmod +x /opt/tools/bin/cc \
+    && printf '#!/bin/sh\nexec /opt/tools/zig/zig ar "$@"\n' > /opt/tools/bin/ar \
+    && chmod +x /opt/tools/bin/ar
 
 # =============================================================================
 # Stage: pause binary (static, for scratch)
