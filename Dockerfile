@@ -3,6 +3,7 @@ ARG NMAP_VERSION=7.94SVN
 ARG GH_VERSION=2.86.0
 ARG DOCKER_VERSION=29.2.0
 ARG RUST_VERSION=1.84.0
+ARG ZIG_VERSION=0.13.0
 
 # =============================================================================
 # Base builder with common tools
@@ -84,6 +85,18 @@ RUN mkdir -p /opt/tools/bin /opt/tools/rust \
     && ln -sf /opt/tools/rust/bin/rust-analyzer /opt/tools/bin/rust-analyzer
 
 # =============================================================================
+# Stage: Zig (C compiler for Rust native builds)
+# =============================================================================
+FROM base AS zig-builder
+ARG ZIG_VERSION
+RUN mkdir -p /opt/tools/bin /opt/tools/zig \
+    && curl -sL "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-x86_64-${ZIG_VERSION}.tar.xz" \
+      | tar -xJ -C /opt/tools/zig --strip-components=1 \
+    && ln -sf /opt/tools/zig/zig /opt/tools/bin/zig \
+    && printf '#!/bin/sh\nexec /opt/tools/zig/zig cc "$@"\n' > /opt/tools/bin/cc \
+    && chmod +x /opt/tools/bin/cc
+
+# =============================================================================
 # Stage: pause binary (static, for scratch)
 # =============================================================================
 FROM alpine:latest AS pause-builder
@@ -106,10 +119,11 @@ COPY --from=gcloud-builder --chown=1000:1000 /opt/tools/ /opt/tools/
 COPY --from=docker-builder --chown=1000:1000 /opt/tools/ /opt/tools/
 COPY --from=make-builder --chown=1000:1000 /opt/tools/ /opt/tools/
 COPY --from=rust-builder --chown=1000:1000 /opt/tools/ /opt/tools/
+COPY --from=zig-builder --chown=1000:1000 /opt/tools/ /opt/tools/
 
 # Labels
 LABEL org.opencontainers.image.title="Homelab Tools"
-LABEL org.opencontainers.image.description="Development tools: nmap, gh, gcloud, docker, make, cargo/rustc"
+LABEL org.opencontainers.image.description="Development tools: nmap, gh, gcloud, docker, make, cargo/rustc, zig/cc"
 LABEL org.opencontainers.image.source="https://github.com/rgryta/Homelab-Tools"
 
 USER 1000:1000
