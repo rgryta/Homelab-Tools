@@ -33,6 +33,7 @@ jobs:
           echo "nmap_version=${NMAP_VERSION}" >> $GITHUB_OUTPUT
           echo "gh_version=${GH_VERSION}" >> $GITHUB_OUTPUT
           echo "docker_version=${DOCKER_VERSION}" >> $GITHUB_OUTPUT
+          echo "rust_version=${RUST_VERSION}" >> $GITHUB_OUTPUT
 
       - name: Check if IMAGE_VERSION changed
         id: check-version
@@ -86,6 +87,7 @@ jobs:
             NMAP_VERSION=${{ steps.versions.outputs.nmap_version }}
             GH_VERSION=${{ steps.versions.outputs.gh_version }}
             DOCKER_VERSION=${{ steps.versions.outputs.docker_version }}
+            RUST_VERSION=${{ steps.versions.outputs.rust_version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
