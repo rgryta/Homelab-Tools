@@ -2,13 +2,14 @@
 ARG NMAP_VERSION=7.94SVN
 ARG GH_VERSION=2.86.0
 ARG DOCKER_VERSION=29.2.0
+ARG RUST_VERSION=1.84.0
 
 # =============================================================================
 # Base builder with common tools
 # =============================================================================
 FROM debian:bookworm-slim AS base
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl wget ca-certificates jq \
+    curl wget ca-certificates jq xz-utils \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # =============================================================================
@@ -66,6 +67,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends make \
     && cp /usr/bin/make /opt/tools/bin/
 
 # =============================================================================
+# Stage: Rust toolchain
+# =============================================================================
+FROM base AS rust-builder
+ARG RUST_VERSION
+RUN mkdir -p /opt/tools/bin /opt/tools/rust \
+    && curl -sL "https://static.rust-lang.org/dist/rust-${RUST_VERSION}-x86_64-unknown-linux-gnu.tar.xz" \
+      | tar -xJ -C /tmp \
+    && /tmp/rust-${RUST_VERSION}-x86_64-unknown-linux-gnu/install.sh \
+      --destdir=/opt/tools/rust --prefix="" --without=rust-docs \
+    && ln -sf /opt/tools/rust/bin/cargo /opt/tools/bin/cargo \
+    && ln -sf /opt/tools/rust/bin/rustc /opt/tools/bin/rustc \
+    && ln -sf /opt/tools/rust/bin/rustfmt /opt/tools/bin/rustfmt \
+    && ln -sf /opt/tools/rust/bin/cargo-clippy /opt/tools/bin/cargo-clippy \
+    && ln -sf /opt/tools/rust/bin/clippy-driver /opt/tools/bin/clippy-driver \
+    && ln -sf /opt/tools/rust/bin/rust-analyzer /opt/tools/bin/rust-analyzer
+
+# =============================================================================
 # Stage: pause binary (static, for scratch)
 # =============================================================================
 FROM alpine:latest AS pause-builder
@@ -87,10 +105,11 @@ COPY --from=gh-builder --chown=1000:1000 /opt/tools/ /opt/tools/
 COPY --from=gcloud-builder --chown=1000:1000 /opt/tools/ /opt/tools/
 COPY --from=docker-builder --chown=1000:1000 /opt/tools/ /opt/tools/
 COPY --from=make-builder --chown=1000:1000 /opt/tools/ /opt/tools/
+COPY --from=rust-builder --chown=1000:1000 /opt/tools/ /opt/tools/
 
 # Labels
 LABEL org.opencontainers.image.title="Homelab Tools"
-LABEL org.opencontainers.image.description="Development tools: nmap, gh, gcloud, docker, make"
+LABEL org.opencontainers.image.description="Development tools: nmap, gh, gcloud, docker, make, cargo/rustc"
 LABEL org.opencontainers.image.source="https://github.com/rgryta/Homelab-Tools"
 
 USER 1000:1000
