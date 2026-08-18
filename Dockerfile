@@ -4,6 +4,7 @@ ARG GH_VERSION=2.86.0
 ARG DOCKER_VERSION=29.2.0
 ARG RUST_VERSION=1.84.0
 ARG ZIG_VERSION=0.13.0
+ARG TMUX_VERSION=3.7c
 
 # =============================================================================
 # Base builder with common tools
@@ -99,6 +100,25 @@ RUN mkdir -p /opt/tools/bin /opt/tools/zig \
     && chmod +x /opt/tools/bin/ar
 
 # =============================================================================
+# Stage: tmux (static, musl) - detaches long-running sessions from the
+# code-server pty so client disconnects cannot stall them via flow control
+# =============================================================================
+FROM alpine:latest AS tmux-builder
+ARG TMUX_VERSION
+RUN apk add --no-cache build-base bison curl \
+      ncurses-dev ncurses-static libevent-dev libevent-static \
+    && mkdir -p /opt/tools/bin \
+    && curl -sL "https://github.com/tmux/tmux/releases/download/${TMUX_VERSION}/tmux-${TMUX_VERSION}.tar.gz" \
+      | tar -xz -C /tmp \
+    && cd /tmp/tmux-${TMUX_VERSION} \
+    && ./configure --enable-static \
+    && make -j"$(nproc)" \
+    && cp tmux /opt/tools/bin/tmux \
+    && strip /opt/tools/bin/tmux \
+    && ! ldd /opt/tools/bin/tmux 2>/dev/null | grep -q '=>' \
+    && /opt/tools/bin/tmux -V
+
+# =============================================================================
 # Stage: pause binary (static, for scratch)
 # =============================================================================
 FROM alpine:latest AS pause-builder
@@ -122,10 +142,11 @@ COPY --from=docker-builder --chown=1000:1000 /opt/tools/ /opt/tools/
 COPY --from=make-builder --chown=1000:1000 /opt/tools/ /opt/tools/
 COPY --from=rust-builder --chown=1000:1000 /opt/tools/ /opt/tools/
 COPY --from=zig-builder --chown=1000:1000 /opt/tools/ /opt/tools/
+COPY --from=tmux-builder --chown=1000:1000 /opt/tools/ /opt/tools/
 
 # Labels
 LABEL org.opencontainers.image.title="Homelab Tools"
-LABEL org.opencontainers.image.description="Development tools: nmap, gh, gcloud, docker, make, cargo/rustc, zig/cc"
+LABEL org.opencontainers.image.description="Development tools: nmap, gh, gcloud, docker, make, cargo/rustc, zig/cc, tmux"
 LABEL org.opencontainers.image.source="https://github.com/rgryta/Homelab-Tools"
 
 USER 1000:1000

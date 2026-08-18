@@ -35,6 +35,7 @@ jobs:
           echo "docker_version=${DOCKER_VERSION}" >> $GITHUB_OUTPUT
           echo "rust_version=${RUST_VERSION}" >> $GITHUB_OUTPUT
           echo "zig_version=${ZIG_VERSION}" >> $GITHUB_OUTPUT
+          echo "tmux_version=${TMUX_VERSION}" >> $GITHUB_OUTPUT
 
       - name: Check if IMAGE_VERSION changed
         id: check-version
@@ -90,6 +91,7 @@ jobs:
             DOCKER_VERSION=${{ steps.versions.outputs.docker_version }}
             RUST_VERSION=${{ steps.versions.outputs.rust_version }}
             ZIG_VERSION=${{ steps.versions.outputs.zig_version }}
+            TMUX_VERSION=${{ steps.versions.outputs.tmux_version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

@@ -28,6 +28,7 @@ jobs:
           echo "gh_version=${GH_VERSION}" >> $GITHUB_OUTPUT
           echo "docker_version=${DOCKER_VERSION}" >> $GITHUB_OUTPUT
           echo "rust_version=${RUST_VERSION}" >> $GITHUB_OUTPUT
+          echo "tmux_version=${TMUX_VERSION}" >> $GITHUB_OUTPUT
 
       - name: Check latest nmap version
         id: check-nmap
@@ -61,6 +62,14 @@ jobs:
           echo "latest=${LATEST}" >> $GITHUB_OUTPUT
           echo "Latest Rust: ${LATEST}"
 
+      - name: Check latest tmux version
+        id: check-tmux
+        run: |
+          LATEST=$(curl -sL "https://api.github.com/repos/tmux/tmux/releases/latest" | \
+            jq -r '.tag_name')
+          echo "latest=${LATEST}" >> $GITHUB_OUTPUT
+          echo "Latest tmux: ${LATEST}"
+
       - name: Compare versions
         id: compare
         run: |
@@ -91,6 +100,12 @@ jobs:
             echo "Rust update available: ${{ steps.current.outputs.rust_version }} -> ${{ steps.check-rust.outputs.latest }}"
           fi
 
+          if [ "${{ steps.current.outputs.tmux_version }}" != "${{ steps.check-tmux.outputs.latest }}" ] && [ -n "${{ steps.check-tmux.outputs.latest }}" ]; then
+            UPDATES="true"
+            CHANGELOG="${CHANGELOG}- **tmux**: ${{ steps.current.outputs.tmux_version }} → ${{ steps.check-tmux.outputs.latest }}\n"
+            echo "tmux update available: ${{ steps.current.outputs.tmux_version }} -> ${{ steps.check-tmux.outputs.latest }}"
+          fi
+
           if [ -z "$UPDATES" ]; then
             echo "All dependencies are up to date"
             echo "updates_available=false" >> $GITHUB_OUTPUT
@@ -110,10 +125,12 @@ jobs:
           NEW_GH="${{ steps.check-gh.outputs.latest }}"
           NEW_DOCKER="${{ steps.check-docker.outputs.latest }}"
           NEW_RUST="${{ steps.check-rust.outputs.latest }}"
+          NEW_TMUX="${{ steps.check-tmux.outputs.latest }}"
           [ -z "$NEW_NMAP" ] && NEW_NMAP="${NMAP_VERSION}"
           [ -z "$NEW_GH" ] && NEW_GH="${GH_VERSION}"
           [ -z "$NEW_DOCKER" ] && NEW_DOCKER="${DOCKER_VERSION}"
           [ -z "$NEW_RUST" ] && NEW_RUST="${RUST_VERSION}"
+          [ -z "$NEW_TMUX" ] && NEW_TMUX="${TMUX_VERSION}"
 
           cat > .versions << EOF
           IMAGE_VERSION=${IMAGE_VERSION}
@@ -121,6 +138,8 @@ jobs:
           GH_VERSION=${NEW_GH}
           DOCKER_VERSION=${NEW_DOCKER}
           RUST_VERSION=${NEW_RUST}
+          ZIG_VERSION=${ZIG_VERSION}
+          TMUX_VERSION=${NEW_TMUX}
           EOF
 
           echo "Updated .versions:"
