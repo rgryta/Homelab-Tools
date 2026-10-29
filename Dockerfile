@@ -119,30 +119,26 @@ RUN apk add --no-cache build-base bison curl \
     && /opt/tools/bin/tmux -V
 
 # =============================================================================
-# Stage: pause binary (static, for scratch)
-# =============================================================================
-FROM alpine:latest AS pause-builder
-RUN apk add --no-cache go \
-    && echo 'package main; import ("os"; "os/signal"); func main() { c := make(chan os.Signal, 1); signal.Notify(c); <-c }' > /pause.go \
-    && CGO_ENABLED=0 go build -ldflags="-s -w" -o /pause /pause.go
-
-# =============================================================================
 # Final minimal image (scratch)
 # =============================================================================
 FROM scratch
 
 # Copy pause binary
-COPY --from=pause-builder /pause /pause
+COPY --from=ghcr.io/rgryta/volume-seed:1.0.0 /pause /pause
+# The payload goes to /seed. On each start, /pause copies it into the target volumes if the
+# payload changed, so a plain `compose up -d` gets the new files (see rgryta/volume-seed).
+# The target dirs must exist and belong to uid 1000, so that uid 1000 can write to a new volume.
+COPY --from=ghcr.io/rgryta/volume-seed:1.0.0 --chown=1000:1000 /empty /opt/tools
 
 # Copy from all builder stages
-COPY --from=nmap-builder --chown=1000:1000 /opt/tools/ /opt/tools/
-COPY --from=gh-builder --chown=1000:1000 /opt/tools/ /opt/tools/
-COPY --from=gcloud-builder --chown=1000:1000 /opt/tools/ /opt/tools/
-COPY --from=docker-builder --chown=1000:1000 /opt/tools/ /opt/tools/
-COPY --from=make-builder --chown=1000:1000 /opt/tools/ /opt/tools/
-COPY --from=rust-builder --chown=1000:1000 /opt/tools/ /opt/tools/
-COPY --from=zig-builder --chown=1000:1000 /opt/tools/ /opt/tools/
-COPY --from=tmux-builder --chown=1000:1000 /opt/tools/ /opt/tools/
+COPY --from=nmap-builder --chown=1000:1000 /opt/tools/ /seed/opt/tools/
+COPY --from=gh-builder --chown=1000:1000 /opt/tools/ /seed/opt/tools/
+COPY --from=gcloud-builder --chown=1000:1000 /opt/tools/ /seed/opt/tools/
+COPY --from=docker-builder --chown=1000:1000 /opt/tools/ /seed/opt/tools/
+COPY --from=make-builder --chown=1000:1000 /opt/tools/ /seed/opt/tools/
+COPY --from=rust-builder --chown=1000:1000 /opt/tools/ /seed/opt/tools/
+COPY --from=zig-builder --chown=1000:1000 /opt/tools/ /seed/opt/tools/
+COPY --from=tmux-builder --chown=1000:1000 /opt/tools/ /seed/opt/tools/
 
 # Labels
 LABEL org.opencontainers.image.title="Homelab Tools"
@@ -151,4 +147,4 @@ LABEL org.opencontainers.image.source="https://github.com/rgryta/Homelab-Tools"
 
 USER 1000:1000
 
-CMD ["/pause"]
+CMD ["/pause", "/opt/tools"]
